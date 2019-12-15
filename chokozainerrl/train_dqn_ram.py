@@ -38,6 +38,9 @@ from chainerrl import misc
 from chainerrl import q_functions
 from chainerrl import replay_buffer
 
+from chainerrl.wrappers import atari_wrappers
+
+
 def make_args(argstr):
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', type=str, default='check')
@@ -48,7 +51,7 @@ def make_args(argstr):
     parser.add_argument('--steps', type=int, default=10 ** 5)
     parser.add_argument('--step-offset', type=int, default=0)
     parser.add_argument('--checkpoint-freq', type=int, default=10000)
-    parser.add_argument('--max-episode-len', type=int, default=200)
+    parser.add_argument('--max-frames', type=int, default=30 * 60 * 60)
     parser.add_argument('--seed', type=int, default=0,
                         help='Random seed [0, 2 ** 32)')
     parser.add_argument('--final-exploration-steps',
@@ -68,8 +71,6 @@ def make_args(argstr):
     parser.add_argument('--n-hidden-layers', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--minibatch-size', type=int, default=None)
-    parser.add_argument('--render-train', action='store_true')
-    parser.add_argument('--render-eval', action='store_true')
     parser.add_argument('--reward-scale-factor', type=float, default=1.0)
     parser.add_argument('--log-type',type=str,default="full_stream")
     parser.add_argument('--save-mp4',type=str,default="test.mp4")
@@ -98,15 +99,17 @@ def main(args):
         env.seed(env_seed)
         # Cast observations to float32 because our model uses float32
         env = chainerrl.wrappers.CastObservationToFloat32(env)
+        # atari
+        #env = atari_wrappers.wrap_deepmind(env,episode_life=not test,clip_rewards=not test)
+        env = atari_wrappers.FireResetEnv(env)
+        env = atari_wrappers.EpisodicLifeEnv(env)
         if isinstance(env.action_space, spaces.Box):
             misc.env_modifiers.make_action_filtered(env, clip_action_filter)
         if not test:
             # Scale rewards (and thus returns) to a reasonable range so that
             # training is easier
             env = chainerrl.wrappers.ScaleReward(env, args.reward_scale_factor)
-        if ((args.render_eval and test) or
-                (args.render_train and not test)):
-            env = chainerrl.wrappers.Render(env)
+        print(env.action_space)
         return env
 
     env = make_env(test=False)
@@ -131,12 +134,12 @@ def main(args):
             outdir=args.outdir, eval_env=eval_env,
             step_offset=args.step_offset,
             checkpoint_freq=args.checkpoint_freq,
-            train_max_episode_len=args.max_episode_len,
-            eval_max_episode_len=args.max_episode_len,
+            train_max_episode_len=args.max_frames,
+            eval_max_episode_len=args.max_frames,
             log_type=args.log_type
             )
     elif (args.mode=='check'):
         return tools.make_video.check(env=env,agent=agent,save_mp4=args.save_mp4)
 
     elif (args.mode=='growth'):
-        return tools.make_video.growth(env=env,agent=agent,outdir=args.outdir,max_num=args.max_episode_len,save_mp4=args.save_mp4)
+        return tools.make_video.growth(env=env,agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
