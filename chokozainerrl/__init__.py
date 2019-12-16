@@ -10,6 +10,7 @@ from chokozainerrl import train_iqn_gym
 from chokozainerrl import train_pcl_gym
 from chokozainerrl import train_dqn_ale
 from chokozainerrl import train_dqn_ram
+from chokozainerrl import train_dqn_ram2
 from chokozainerrl import train_dqn_batch_ale
 from chokozainerrl import train_a2c_ale
 from chokozainerrl import train_acer_ale
