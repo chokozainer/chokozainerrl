@@ -38,7 +38,7 @@ from chainerrl import misc
 from chainerrl import q_functions
 from chainerrl import replay_buffer
 
-from chainerrl.wrappers import atari_wrappers
+from chokozainerrl.wrappers import atari_wrappers
 
 
 def make_args(argstr):
@@ -100,9 +100,8 @@ def main(args):
         # Cast observations to float32 because our model uses float32
         env = chainerrl.wrappers.CastObservationToFloat32(env)
         # atari
-        #env = atari_wrappers.wrap_deepmind(env,episode_life=not test,clip_rewards=not test)
-        env = atari_wrappers.FireResetEnv(env)
-        env = atari_wrappers.EpisodicLifeEnv(env)
+        env = atari_wrappers.FireResetEnvAuto(env)
+        print("Set FireResetEnvAuto")
         if isinstance(env.action_space, spaces.Box):
             misc.env_modifiers.make_action_filtered(env, clip_action_filter)
         if not test:
@@ -139,7 +138,7 @@ def main(args):
             log_type=args.log_type
             )
     elif (args.mode=='check'):
-        return tools.make_video.check(env=env,agent=agent,save_mp4=args.save_mp4)
+        return tools.make_video.check(env=env,agent=agent,max_num=args.max_frames,save_mp4=args.save_mp4)
 
     elif (args.mode=='growth'):
         return tools.make_video.growth(env=env,agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)

@@ -4,7 +4,7 @@ from IPython.display import HTML
 import re
 import os
 
-def check(env,agent,save_mp4=None):
+def check(env,agent,save_mp4=None,max_num=200):
     save_mp4= save_mp4 or 'result.mp4'        
     frames = []
     for i in range(3):
@@ -12,7 +12,7 @@ def check(env,agent,save_mp4=None):
         done = False
         R = 0
         t = 0
-        while not done and t < 200:
+        while not done and t < max_num:
             frames.append(env.render(mode = 'rgb_array'))
             action = agent.act(obs)
             obs, r, done, _ = env.step(action)
