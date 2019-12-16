@@ -27,7 +27,7 @@ from chokozainerrl import agents  # NOQA
 from chokozainerrl import test 
 
 __copyright__    = 'Copyright (C) 2019 chokozainer'
-__version__      = '0.0.60'
+__version__      = '0.0.60.1'
 __license__      = 'MIT'
 __author__       = 'chokozainer'
 __author_email__ = 'fgtohru@gmail.com'

@@ -38,7 +38,9 @@ from chainerrl import misc
 from chainerrl import q_functions
 from chainerrl import replay_buffer
 
-from chokozainerrl import wrappers
+#from chokozainerrl import wrappers
+#from chainerrl.wrappers import atari_wrappers
+from chokozainerrl.wrappers import atari_wrappers
 
 
 def make_args(argstr):
@@ -100,7 +102,7 @@ def main(args):
         # Cast observations to float32 because our model uses float32
         env = chainerrl.wrappers.CastObservationToFloat32(env)
         # atari
-        env = wrappers.atari_wrappers.FireResetEnvAuto(env)
+        env = atari_wrappers.FireResetEnvAuto(env)
         print("Set FireResetEnvAuto")
         if isinstance(env.action_space, spaces.Box):
             misc.env_modifiers.make_action_filtered(env, clip_action_filter)
