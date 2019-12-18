@@ -89,7 +89,7 @@ def make_args(argstr):
     parser.add_argument('--mode', type=str, default='check')
     parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
     parser.add_argument('--outdir', type=str, default='results')
-    parser.add_argument('--gpu', type=int, default=-1)
+    parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--load-agent', type=str, default=None)
     parser.add_argument('--log-type',type=str,default="full_stream")
     parser.add_argument('--save-mp4',type=str,default="test.mp4")
@@ -138,9 +138,6 @@ def main(args):
     # Set different random seeds for train and test envs.
     train_seed = args.seed
     test_seed = 2 ** 31 - 1 - args.seed
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     def make_env(test):
         # Use different random seeds for train and test envs
