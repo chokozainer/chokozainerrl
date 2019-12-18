@@ -38,6 +38,9 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None,
         pbar= tqdm(total=steps,position=0)
         if step_offset>0:
             pbar.update(step_offset)
+    if checkpoint_freq:
+        check_n = step_offset + checkpoint_freq
+
     #pbar_steps=step_offset
     episode_r = 0
     episode_idx = 0
@@ -77,12 +80,11 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None,
                     print('outdir:%s step:%s episode:%s R:%s' %(outdir, t, episode_idx, episode_r))
                     print('statistics:%s' % agent.get_statistics())
                 if(log_type=='pbar'):
-                    if(t-pbar.n)>= steps*0.01:
+                    if(t-pbar.n)>= 1000:
                         pbar.update(t-pbar.n)
-#                    if(t-pbar_steps)>= steps*0.01:
-#                        pbar.update(t-pbar_steps)
-#                        pbar_steps=t
-                        
+                if checkpoint_freq and t >= check_n :
+                    save_agent(agent, t, outdir, logger, suffix='_checkpoint')
+                    check_n += checkpoint_freq
                 if evaluator is not None:
                     evaluator.evaluate_if_necessary(
                         t=t, episodes=episode_idx + 1)
@@ -97,9 +99,7 @@ def train_agent(agent, env, steps, outdir, checkpoint_freq=None,
                 episode_len = 0
                 obs = env.reset()
                 r = 0
-            if checkpoint_freq and t % checkpoint_freq == 0:
-                save_agent(agent, t, outdir, logger, suffix='_checkpoint')
-
+            
     except (Exception, KeyboardInterrupt):
         # Save the current model before being killed
         save_agent(agent, t, outdir, logger, suffix='_except')
