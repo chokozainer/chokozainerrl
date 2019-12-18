@@ -35,6 +35,8 @@ def make_args(argstr):
     parser.add_argument('--target-update-interval', type=int, default=10 ** 2)
     parser.add_argument('--target-update-method', type=str, default='hard')
     parser.add_argument('--soft-update-tau', type=float, default=1e-2)
+    parser.add_argument('--stack-k',type=int,default=4)
+
     myargs = parser.parse_args(argstr)
     return myargs
 
@@ -44,7 +46,7 @@ def chokoDQN(env,args=None):
         args=make_args(args)
 
     obs_space = env.observation_space
-    obs_size = obs_space.low.size
+    obs_size = obs_space.low.size*args.stack_k
     action_space = env.action_space
 
     if isinstance(action_space, spaces.Box):
