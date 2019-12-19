@@ -9,7 +9,7 @@ from collections import deque
 import logging
 
 import numpy as np
-
+import os
 
 from chokozainerrl.experiments.evaluator import Evaluator
 from chokozainerrl.experiments.evaluator import save_agent
@@ -50,6 +50,10 @@ def train_agent_batch(agent, env, steps, outdir,
         pbar= tqdm(total=steps,position=0)
         if step_offset>0:
             pbar.update(step_offset)
+
+    if checkpoint_freq:
+        check_n = step_offset + checkpoint_freq
+
     recent_returns = deque(maxlen=return_window_size)
 
     num_envs = env.num_envs
@@ -119,19 +123,22 @@ def train_agent_batch(agent, env, steps, outdir,
                         np.mean(recent_returns) if recent_returns else np.nan,
                     ))
                 logger.info('statistics: {}'.format(agent.get_statistics()))
-                # add choko
-                if(log_type=='full_stream'):
-                    print('outdir:{} step:{} episode:{} last_R: {} average_R:{}'.format(  # NOQA
-                        outdir,
-                        t,
-                        np.sum(episode_idx),
-                        recent_returns[-1] if recent_returns else np.nan,
-                        np.mean(recent_returns) if recent_returns else np.nan,
-                        ))
-                    print('statistics: {}'.format(agent.get_statistics()))
-                if(log_type=='pbar'):
-                    if(t-pbar.n)>= steps*0.01:
-                        pbar.update(t-pbar.n)
+            # add choko
+            if(log_type=='full_stream'):
+                print('outdir:{} step:{} episode:{} last_R: {} average_R:{}'.format(  # NOQA
+                    outdir,
+                    t,
+                    np.sum(episode_idx),
+                    recent_returns[-1] if recent_returns else np.nan,
+                    np.mean(recent_returns) if recent_returns else np.nan,
+                    ))
+                print('statistics: {}'.format(agent.get_statistics()))
+            if(log_type=='pbar'):
+                if(t-pbar.n)>= steps*1000:
+                    pbar.update(t-pbar.n)
+            if checkpoint_freq and t >= check_n :
+                save_agent(agent, t, outdir, logger, suffix='_checkpoint')
+                check_n += checkpoint_freq
 
             if evaluator:
                 if evaluator.evaluate_if_necessary(

@@ -1,3 +1,10 @@
+"""An example of training DQN against OpenAI Gym Atari Envs.
+This script is changed from chainerrl examples. 
+This script is an example of training a DQN agent against OpenAI Gym envs.
+Both discrete and continuous action spaces are supported. For continuous action
+spaces, A NAF (Normalized Advantage Function) is used to approximate Q-values.
+"""
+
 from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
@@ -8,6 +15,7 @@ standard_library.install_aliases()  # NOQA
 import argparse
 import functools
 import os
+import sys
 
 import chainer
 from chainer import functions as F
@@ -18,7 +26,8 @@ import numpy as np
 import chainerrl
 from chainerrl.action_value import DiscreteActionValue
 from chainerrl import agents
-from chainerrl import experiments
+from chokozainerrl import experiments
+from chokozainerrl import tools
 from chainerrl import explorers
 from chainerrl import links
 from chainerrl import misc
@@ -75,56 +84,54 @@ def parse_agent(agent):
             'PAL': agents.PAL}[agent]
 
 
-def main():
+def make_args(argstr):
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', type=str, default='check')
     parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
-    parser.add_argument('--outdir', type=str, default='results',
-                        help='Directory path to save output files.'
-                             ' If it does not exist, it will be created.')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='Random seed [0, 2 ** 31)')
+    parser.add_argument('--outdir', type=str, default='results')
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default=None)
-    parser.add_argument('--final-exploration-frames',
-                        type=int, default=10 ** 6)
+    parser.add_argument('--load-agent', type=str, default=None)
+    parser.add_argument('--log-type',type=str,default="full_stream")
+    parser.add_argument('--save-mp4',type=str,default="test.mp4")
+    parser.add_argument('--arch', type=str, default='doubledqn',choices=['nature', 'nips', 'dueling', 'doubledqn'])
+    parser.add_argument('--agent', type=str, default='DoubleDQN',choices=['DQN', 'DoubleDQN', 'PAL'])
+
+    parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
+    parser.add_argument('--step-offset', type=int, default=0)
+    parser.add_argument('--checkpoint-frequency', type=int,default=None)
+    parser.add_argument('--max-frames', type=int,default=30 * 60 * 60)  # 30 minutes with 60 fps
+    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
+    parser.add_argument('--eval-n-runs', type=int, default=10)
+
+
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--final-exploration-frames',type=int, default=10 ** 6)
     parser.add_argument('--final-epsilon', type=float, default=0.01)
     parser.add_argument('--eval-epsilon', type=float, default=0.001)
     parser.add_argument('--noisy-net-sigma', type=float, default=None)
-    parser.add_argument('--arch', type=str, default='doubledqn',
-                        choices=['nature', 'nips', 'dueling', 'doubledqn'])
-    parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
-    parser.add_argument('--max-frames', type=int,
-                        default=30 * 60 * 60,  # 30 minutes with 60 fps
-                        help='Maximum number of frames for each episode.')
     parser.add_argument('--replay-start-size', type=int, default=5 * 10 ** 4)
-    parser.add_argument('--target-update-interval',
-                        type=int, default=3 * 10 ** 4)
-    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
+    parser.add_argument('--target-update-interval',type=int, default=3 * 10 ** 4)
     parser.add_argument('--update-interval', type=int, default=4)
-    parser.add_argument('--eval-n-runs', type=int, default=10)
-    parser.add_argument('--no-clip-delta',
-                        dest='clip_delta', action='store_false')
-    parser.set_defaults(clip_delta=True)
-    parser.add_argument('--agent', type=str, default='DoubleDQN',
-                        choices=['DQN', 'DoubleDQN', 'PAL'])
-    parser.add_argument('--logging-level', type=int, default=20,
-                        help='Logging level. 10:DEBUG, 20:INFO etc.')
-    parser.add_argument('--render', action='store_true', default=False,
-                        help='Render env states in a GUI window.')
-    parser.add_argument('--monitor', action='store_true', default=False,
-                        help='Monitor env. Videos and additional information'
-                             ' are saved as output files.')
-    parser.add_argument('--lr', type=float, default=2.5e-4,
-                        help='Learning rate')
-    parser.add_argument('--prioritized', action='store_true', default=False,
-                        help='Use prioritized experience replay.')
-    parser.add_argument('--num-envs', type=int, default=1)
+    parser.add_argument('--no-clip-delta',dest='clip_delta', action='store_false')
     parser.add_argument('--n-step-return', type=int, default=1)
-    args = parser.parse_args()
+    parser.set_defaults(clip_delta=True)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--monitor', action='store_true', default=False)
+    parser.add_argument('--lr', type=float, default=2.5e-4)
+    parser.add_argument('--prioritized', action='store_true', default=False)
 
+    parser.add_argument('--num-envs', type=int, default=1)
+    myargs = parser.parse_args(argstr)
+    return myargs
+
+def main(args):
     import logging
-    logging.basicConfig(level=args.logging_level)
+    logging.basicConfig(level=logging.INFO, filename='log')
+
+    if(type(args) is list):
+        args=make_args(args)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
 
     # Set a random seed used in ChainerRL.
     misc.set_random_seed(args.seed, gpus=(args.gpu,))
@@ -134,9 +141,6 @@ def main():
     # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
     process_seeds = np.arange(args.num_envs) + args.seed * args.num_envs
     assert process_seeds.max() < 2 ** 32
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     def make_env(idx, test):
         # Use different random seeds for train and test envs
@@ -218,32 +222,28 @@ def main():
                   batch_accumulator='sum',
                   phi=phi)
 
-    if args.load:
-        agent.load(args.load)
+    if args.load_agent:
+        agent.load(args.load_agent)
 
-    if args.demo:
-        eval_stats = experiments.eval_performance(
-            env=make_batch_env(test=True),
-            agent=agent,
-            n_steps=None,
-            n_episodes=args.eval_n_runs)
-        print('n_runs: {} mean: {} median: {} stdev {}'.format(
-            args.eval_n_runs, eval_stats['mean'], eval_stats['median'],
-            eval_stats['stdev']))
-    else:
+    if (args.mode=='train'):
         experiments.train_agent_batch_with_evaluation(
             agent=agent,
             env=make_batch_env(test=False),
             eval_env=make_batch_env(test=True),
             steps=args.steps,
+            checkpoint_freq=args.checkpoint_frequency,
+            step_offset=args.step_offset,
             eval_n_steps=None,
             eval_n_episodes=args.eval_n_runs,
             eval_interval=args.eval_interval,
             outdir=args.outdir,
             save_best_so_far_agent=False,
             log_interval=1000,
+            log_type=args.log_type
         )
+    elif (args.mode=='check'):
+        return tools.make_video.check(env=sample_env,agent=agent,save_mp4=args.save_mp4)
 
+    elif (args.mode=='growth'):
+        return tools.make_video.growth(env=sample_env,agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
 
-if __name__ == '__main__':
-    main()

@@ -215,14 +215,14 @@ def main(args):
     if (args.mode=='train'):
         experiments.train_agent_with_evaluation(
             agent=agent, env=env, steps=args.steps,
-            eval_n_steps=None,
+            eval_env=eval_env,
             checkpoint_freq=args.checkpoint_frequency,
+            step_offset=args.step_offset,
+            eval_n_steps=None,
             eval_n_episodes=args.eval_n_runs,
             eval_interval=args.eval_interval,
             outdir=args.outdir,
-            step_offset=args.step_offset,
             save_best_so_far_agent=False,
-            eval_env=eval_env,
             log_type=args.log_type
         )
     elif (args.mode=='check'):
