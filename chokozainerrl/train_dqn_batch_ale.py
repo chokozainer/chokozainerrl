@@ -242,8 +242,8 @@ def main(args):
             log_type=args.log_type
         )
     elif (args.mode=='check'):
-        return tools.make_video.check(env=sample_env,agent=agent,save_mp4=args.save_mp4)
+        return tools.make_video.check(env=make_batch_env(test=True),agent=agent,save_mp4=args.save_mp4)
 
     elif (args.mode=='growth'):
-        return tools.make_video.growth(env=sample_env,agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
+        return tools.make_video.growth(env=make_batch_env(test=True),agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
 

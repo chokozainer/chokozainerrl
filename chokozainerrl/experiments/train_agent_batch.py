@@ -134,7 +134,7 @@ def train_agent_batch(agent, env, steps, outdir,
                     ))
                 print('statistics: {}'.format(agent.get_statistics()))
             if(log_type=='pbar'):
-                if(t-pbar.n)>= steps*1000:
+                if(t-pbar.n)>= 1000:
                     pbar.update(t-pbar.n)
             if checkpoint_freq and t >= check_n :
                 save_agent(agent, t, outdir, logger, suffix='_checkpoint')
