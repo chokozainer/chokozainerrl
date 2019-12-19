@@ -1,0 +1,3 @@
+INFO:matplotlib.animation:Animation.save using <class 'matplotlib.animation.FFMpegWriter'>
+INFO:matplotlib.animation:MovieWriter.run: running command: ['ffmpeg', '-f', 'rawvideo', '-vcodec', 'rawvideo', '-s', '160x210', '-pix_fmt', 'rgba', '-r', '20.0', '-loglevel', 'error', '-i', 'pipe:', '-vcodec', 'h264', '-pix_fmt', 'yuv420p', '-y', '../../draft/OpenAI/Breakout/result_dqn_ale_batch_choko/pretrain.mp4']
+INFO:matplotlib.animation:Animation.save using <class 'matplotlib.animation.HTMLWriter'>

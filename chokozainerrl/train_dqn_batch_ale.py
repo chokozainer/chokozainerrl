@@ -163,6 +163,15 @@ def main(args):
         if args.render:
             env = chainerrl.wrappers.Render(env)
         return env
+    def make_env_check():
+        # Use different random seeds for train and test envs
+        env_seed = args.seed
+        env = atari_wrappers.wrap_deepmind(
+            atari_wrappers.make_atari(args.env, max_frames=args.max_frames),
+            episode_life=True,
+            clip_rewards=True)
+        env.seed(int(env_seed))
+        return env
 
     def make_batch_env(test):
         vec_env = chainerrl.envs.MultiprocessVectorEnv(
@@ -242,8 +251,8 @@ def main(args):
             log_type=args.log_type
         )
     elif (args.mode=='check'):
-        return tools.make_video.check(env=make_batch_env(test=True),agent=agent,save_mp4=args.save_mp4)
+        return tools.make_video.check(env=make_env_check(),agent=agent,save_mp4=args.save_mp4)
 
     elif (args.mode=='growth'):
-        return tools.make_video.growth(env=make_batch_env(test=True),agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
+        return tools.make_video.growth(env=make_env_check(),agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
 
