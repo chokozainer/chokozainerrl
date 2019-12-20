@@ -19,6 +19,7 @@ standard_library.install_aliases()  # NOQA
 import argparse
 import functools
 import os
+import sys
 
 import chainer
 from chainer import functions as F
@@ -29,7 +30,8 @@ import numpy as np
 
 import chainerrl
 from chainerrl.action_value import DiscreteActionValue
-from chainerrl import experiments
+from chokozainerrl import experiments
+from chokozainerrl import tools
 from chainerrl import explorers
 from chainerrl import misc
 from chainerrl import replay_buffer
@@ -37,74 +39,51 @@ from chainerrl import replay_buffer
 from chainerrl.wrappers import atari_wrappers
 
 
-def main():
+def make_args(argstr):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4',
-                        help='OpenAI Atari domain to perform algorithm on.')
-    parser.add_argument('--outdir', type=str, default='results',
-                        help='Directory path to save output files.'
-                             ' If it does not exist, it will be created.')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='Random seed [0, 2 ** 31)')
-    parser.add_argument('--gpu', type=int, default=0,
-                        help='GPU to use, set to -1 if no GPU.')
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default=None)
-    parser.add_argument('--final-exploration-frames',
-                        type=int, default=10 ** 6,
-                        help='Timesteps after which we stop ' +
-                        'annealing exploration rate')
-    parser.add_argument('--final-epsilon', type=float, default=0.01,
-                        help='Final value of epsilon during training.')
-    parser.add_argument('--eval-epsilon', type=float, default=0.001,
-                        help='Exploration epsilon used during eval episodes.')
-    parser.add_argument('--steps', type=int, default=5 * 10 ** 7,
-                        help='Total number of timesteps to train the agent.')
-    parser.add_argument('--max-frames', type=int,
-                        default=30 * 60 * 60,  # 30 minutes with 60 fps
-                        help='Maximum number of frames for each episode.')
-    parser.add_argument('--replay-start-size', type=int, default=5 * 10 ** 4,
-                        help='Minimum replay buffer size before ' +
-                        'performing gradient updates.')
-    parser.add_argument('--target-update-interval',
-                        type=int, default=3 * 10 ** 4,
-                        help='Frequency (in timesteps) at which ' +
-                        'the target network is updated.')
-    parser.add_argument('--demo-n-episodes', type=int, default=30)
-    parser.add_argument('--eval-n-steps', type=int, default=125000)
-    parser.add_argument('--eval-interval', type=int, default=250000,
-                        help='Frequency (in timesteps) of evaluation phase.')
-    parser.add_argument('--update-interval', type=int, default=4,
-                        help='Frequency (in timesteps) of network updates.')
-    parser.add_argument('--logging-level', type=int, default=20,
-                        help='Logging level. 10:DEBUG, 20:INFO etc.')
-    parser.add_argument('--render', action='store_true', default=False,
-                        help='Render env states in a GUI window.')
-    parser.add_argument('--monitor', action='store_true', default=False,
-                        help='Monitor env. Videos and additional information'
-                             ' are saved as output files.')
-    parser.add_argument('--lr', type=float, default=2.5e-4,
-                        help='Learning rate.')
-    parser.add_argument('--recurrent', action='store_true', default=False,
-                        help='Use a recurrent model. See the code for the'
-                             ' model definition.')
-    parser.add_argument('--flicker', action='store_true', default=False,
-                        help='Use so-called flickering Atari, where each'
-                             ' screen is blacked out with probability 0.5.')
-    parser.add_argument('--no-frame-stack', action='store_true', default=False,
-                        help='Disable frame stacking so that the agent can'
-                             ' only see the current screen.')
-    parser.add_argument('--episodic-update-len', type=int, default=10,
-                        help='Maximum length of sequences for updating'
-                             ' recurrent models')
-    parser.add_argument('--batch-size', type=int, default=32,
-                        help='Number of transitions (in a non-recurrent case)'
-                             ' or sequences (in a recurrent case) used for an'
-                             ' update.')
-    args = parser.parse_args()
+    parser.add_argument('--mode', type=str, default='check')
+    parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
+    parser.add_argument('--outdir', type=str, default='results')
+    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--load-agent', type=str, default=None)
+    parser.add_argument('--log-type',type=str,default="full_stream")
+    parser.add_argument('--save-mp4',type=str,default="test.mp4")
 
+    parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
+    parser.add_argument('--step-offset', type=int, default=0)
+    parser.add_argument('--checkpoint-frequency', type=int,default=None)
+    parser.add_argument('--max-frames', type=int,default=30 * 60 * 60)  # 30 minutes with 60 fps
+    parser.add_argument('--eval-interval', type=int, default=250000)
+    parser.add_argument('--eval-n-steps', type=int, default=125000)
+
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--final-exploration-frames',type=int, default=10 ** 6)
+    parser.add_argument('--final-epsilon', type=float, default=0.01)
+    parser.add_argument('--eval-epsilon', type=float, default=0.001)
+    parser.add_argument('--replay-start-size', type=int, default=5 * 10 ** 4)
+    parser.add_argument('--target-update-interval',type=int, default=10 ** 4)
+    parser.add_argument('--update-interval', type=int, default=4)
+    parser.add_argument('--batch-size', type=int, default=32)
+    parser.add_argument('--lr', type=float, default=2.5e-4)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--monitor', action='store_true', default=False)
+
+    parser.add_argument('--recurrent', action='store_true', default=False)
+    parser.add_argument('--flicker', action='store_true', default=False)
+    parser.add_argument('--no-frame-stack', action='store_true', default=False)
+    parser.add_argument('--episodic-update-len', type=int, default=10)
+
+    myargs = parser.parse_args(argstr)
+    return myargs
+
+def main(args):
     import logging
-    logging.basicConfig(level=args.logging_level)
+    logging.basicConfig(level=logging.INFO, filename='log')
+
+    if(type(args) is list):
+        args=make_args(args)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
 
     # Set a random seed used in ChainerRL.
     misc.set_random_seed(args.seed, gpus=(args.gpu,))
@@ -112,9 +91,6 @@ def main():
     # Set different random seeds for train and test envs.
     train_seed = args.seed
     test_seed = 2 ** 31 - 1 - args.seed
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     def make_env(test):
         # Use different random seeds for train and test envs
@@ -215,32 +191,23 @@ def main():
         recurrent=args.recurrent,
     )
 
-    if args.load:
-        agent.load(args.load)
+    if args.load_agent:
+        agent.load(args.load_agent)
 
-    if args.demo:
-        eval_stats = experiments.eval_performance(
-            env=eval_env,
-            agent=agent,
-            n_steps=None,
-            n_episodes=args.demo_n_episodes,
-        )
-        print('n_runs: {} mean: {} median: {} stdev {}'.format(
-            args.demo_n_episodes,
-            eval_stats['mean'],
-            eval_stats['median'],
-            eval_stats['stdev'],
-        ))
-    else:
+    if (args.mode=='train'):
         experiments.train_agent_with_evaluation(
             agent=agent, env=env, steps=args.steps,
+            checkpoint_freq=args.checkpoint_frequency,
+            step_offset=args.step_offset,
             eval_n_steps=args.eval_n_steps,
             eval_n_episodes=None,
             eval_interval=args.eval_interval,
             outdir=args.outdir,
             eval_env=eval_env,
+            log_type=args.log_type
         )
+    elif (args.mode=='check'):
+        return tools.make_video.check(env=env,agent=agent,save_mp4=args.save_mp4)
 
-
-if __name__ == '__main__':
-    main()
+    elif (args.mode=='growth'):
+        return tools.make_video.growth(env=env,agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
