@@ -550,3 +550,5 @@ INFO:chokozainerrl.experiments.train_agent:outdir:../../draft/OpenAI/Breakout/re
 INFO:chokozainerrl.experiments.train_agent:statistics:[('average_q', 0.0165025889744404), ('average_loss', 0), ('n_updates', 0)]
 INFO:chokozainerrl.experiments.train_agent:outdir:../../draft/OpenAI/Breakout/result_bouble_iqn_ale_draft_precheck step:10000 episode:273 R:0.0
 INFO:chokozainerrl.experiments.train_agent:statistics:[('average_q', 0.016514364537973045), ('average_loss', 0), ('n_updates', 0)]
+INFO:chokozainerrl.experiments.train_agent:evaluation episode 0 length:26993 R:0.0
+INFO:chokozainerrl.experiments.train_agent:Saved the agent to ../../draft/OpenAI/Breakout/result_bouble_iqn_ale_draft_precheck/10000_except
