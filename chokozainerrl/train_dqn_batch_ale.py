@@ -163,6 +163,7 @@ def main(args):
         if args.render:
             env = chainerrl.wrappers.Render(env)
         return env
+        
     def make_env_check():
         # Use different random seeds for train and test envs
         env_seed = args.seed

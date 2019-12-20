@@ -8,7 +8,7 @@ standard_library.install_aliases()  # NOQA
 import chainer
 import chainer.functions as F
 
-from chainerrl.agents import iqn
+from chokozainerrl.agents import iqn
 
 
 class DoubleIQN(iqn.IQN):

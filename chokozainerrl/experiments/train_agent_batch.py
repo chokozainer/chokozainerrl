@@ -13,7 +13,6 @@ import os
 
 from chokozainerrl.experiments.evaluator import Evaluator
 from chokozainerrl.experiments.evaluator import save_agent
-from chainerrl.misc.makedirs import makedirs
 from tqdm import tqdm_notebook as tqdm
 
 
@@ -223,10 +222,6 @@ def train_agent_batch_with_evaluation(agent,
 
     logger = logger or logging.getLogger(__name__)
     log_type = log_type or 'full_stream'
-
-    makedirs(outdir, exist_ok=True)
-
-    print("Start")
 
     if eval_env is None:
         eval_env = env

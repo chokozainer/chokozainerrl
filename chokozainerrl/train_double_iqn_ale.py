@@ -1,3 +1,12 @@
+"""An example of training DQN against OpenAI Gym Atari Envs.
+This script is changed from chainerrl examples. 
+This script is an example of training a DQN agent against OpenAI Gym envs.
+Both discrete and continuous action spaces are supported. For continuous action
+spaces, A NAF (Normalized Advantage Function) is used to approximate Q-values.
+
+Caution: Double IQN work only new chainerRL > 7.0?
+
+"""
 from __future__ import print_function
 from __future__ import division
 from __future__ import unicode_literals
@@ -9,6 +18,7 @@ import argparse
 import functools
 import json
 import os
+import sys
 
 import chainer
 import chainer.functions as F
@@ -17,7 +27,8 @@ import gym
 import numpy as np
 
 import chainerrl
-from chainerrl import experiments
+from chokozainerrl import experiments
+from chokozainerrl import tools
 from chainerrl import explorers
 from chainerrl import misc
 from chainerrl import replay_buffer
@@ -28,65 +39,60 @@ def parse_agent(agent):
     return {'IQN': chainerrl.agents.IQN,
             'DoubleIQN': chainerrl.agents.DoubleIQN}[agent]
 
-
-def main():
+def make_args(argstr):
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', type=str, default='check')
     parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
-    parser.add_argument('--outdir', type=str, default='results',
-                        help='Directory path to save output files.'
-                             ' If it does not exist, it will be created.')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='Random seed [0, 2 ** 31)')
+    parser.add_argument('--outdir', type=str, default='results')
     parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default=None)
-    parser.add_argument('--final-exploration-frames',
-                        type=int, default=10 ** 6)
-    parser.add_argument('--final-epsilon', type=float, default=0.01)
-    parser.add_argument('--eval-epsilon', type=float, default=0.001)
+    parser.add_argument('--load-agent', type=str, default=None)
+    parser.add_argument('--log-type',type=str,default="full_stream")
+    parser.add_argument('--save-mp4',type=str,default="test.mp4")
+    parser.add_argument('--agent', type=str, default='IQN',choices=['IQN', 'DoubleIQN'])
+
     parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
-    parser.add_argument('--max-frames', type=int,
-                        default=30 * 60 * 60,  # 30 minutes with 60 fps
-                        help='Maximum number of frames for each episode.')
-    parser.add_argument('--replay-start-size', type=int, default=5 * 10 ** 4)
-    parser.add_argument('--target-update-interval',
-                        type=int, default=10 ** 4)
-    parser.add_argument('--agent', type=str, default='IQN',
-                        choices=['IQN', 'DoubleIQN'])
-    parser.add_argument('--prioritized', action='store_true', default=False,
-                        help='Flag to use a prioritized replay buffer')
-    parser.add_argument('--num-step-return', type=int, default=1)
+    parser.add_argument('--step-offset', type=int, default=0)
+    parser.add_argument('--checkpoint-frequency', type=int,default=None)
+    parser.add_argument('--max-frames', type=int,default=30 * 60 * 60)  # 30 minutes with 60 fps
+
     parser.add_argument('--eval-interval', type=int, default=250000)
     parser.add_argument('--eval-n-steps', type=int, default=125000)
+
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--final-exploration-frames',type=int, default=10 ** 6)
+    parser.add_argument('--final-epsilon', type=float, default=0.01)
+    parser.add_argument('--eval-epsilon', type=float, default=0.001)
+    parser.add_argument('--replay-start-size', type=int, default=5 * 10 ** 4)
+    parser.add_argument('--target-update-interval',type=int, default=10 ** 4)
+    parser.add_argument('--prioritized', action='store_true', default=False)
+    parser.add_argument('--num-step-return', type=int, default=1)
     parser.add_argument('--update-interval', type=int, default=4)
     parser.add_argument('--batch-size', type=int, default=32)
-    parser.add_argument('--logging-level', type=int, default=20,
-                        help='Logging level. 10:DEBUG, 20:INFO etc.')
-    parser.add_argument('--render', action='store_true', default=False,
-                        help='Render env states in a GUI window.')
-    parser.add_argument('--monitor', action='store_true', default=False,
-                        help='Monitor env. Videos and additional information'
-                             ' are saved as output files.')
-    parser.add_argument('--batch-accumulator', type=str, default='mean',
-                        choices=['mean', 'sum'])
+    parser.add_argument('--batch-accumulator', type=str, default='mean',choices=['mean', 'sum'])
     parser.add_argument('--quantile-thresholds-N', type=int, default=64)
     parser.add_argument('--quantile-thresholds-N-prime', type=int, default=64)
     parser.add_argument('--quantile-thresholds-K', type=int, default=32)
     parser.add_argument('--n-best-episodes', type=int, default=200)
-    args = parser.parse_args()
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--monitor', action='store_true', default=False)
 
+    myargs = parser.parse_args(argstr)
+    return myargs
+
+def main(args):
     import logging
-    logging.basicConfig(level=args.logging_level)
+    logging.basicConfig(level=logging.INFO, filename='log')
 
+    if(type(args) is list):
+        args=make_args(args)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
     # Set a random seed used in ChainerRL.
     misc.set_random_seed(args.seed, gpus=(args.gpu,))
 
     # Set different random seeds for train and test envs.
     train_seed = args.seed
     test_seed = 2 ** 31 - 1 - args.seed
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     def make_env(test):
         # Use different random seeds for train and test envs
@@ -175,30 +181,23 @@ def main():
         quantile_thresholds_K=args.quantile_thresholds_K,
     )
 
-    if args.load:
-        agent.load(args.load)
+    if args.load_agent:
+        agent.load(args.load_agent)
 
-    if args.demo:
-        eval_stats = experiments.eval_performance(
-            env=eval_env,
-            agent=agent,
-            n_steps=args.eval_n_steps,
-            n_episodes=None,
-        )
-        print('n_steps: {} mean: {} median: {} stdev {}'.format(
-            args.eval_n_steps, eval_stats['mean'], eval_stats['median'],
-            eval_stats['stdev']))
-    else:
+    if (args.mode=='train'):
         experiments.train_agent_with_evaluation(
             agent=agent,
             env=env,
             steps=args.steps,
+            checkpoint_freq=args.checkpoint_frequency,
+            step_offset=args.step_offset,
             eval_n_steps=args.eval_n_steps,
             eval_n_episodes=None,
             eval_interval=args.eval_interval,
             outdir=args.outdir,
             save_best_so_far_agent=True,
             eval_env=eval_env,
+            log_type=args.log_type
         )
 
         dir_of_best_network = os.path.join(args.outdir, "best")
@@ -220,7 +219,9 @@ def main():
         print("The results of the best scoring network:")
         for stat in stats:
             print(str(stat) + ":" + str(stats[stat]))
+    elif (args.mode=='check'):
+        return tools.make_video.check(env=env,agent=agent,save_mp4=args.save_mp4)
 
+    elif (args.mode=='growth'):
+        return tools.make_video.growth(env=env,agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
 
-if __name__ == '__main__':
-    main()

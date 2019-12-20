@@ -9,6 +9,7 @@ from chokozainerrl import train_acer_gym
 from chokozainerrl import train_categorical_dqn_gym
 from chokozainerrl import train_iqn_gym
 from chokozainerrl import train_pcl_gym
+from chokozainerrl import train_double_iqn_ale
 from chokozainerrl import train_dqn_ale
 from chokozainerrl import train_dqn_ram
 from chokozainerrl import train_dqn_ram2
@@ -26,7 +27,6 @@ from chokozainerrl import wrappers
 from chokozainerrl import tools
 from chokozainerrl import agents  # NOQA
 
-from chokozainerrl import test 
 
 __copyright__    = 'Copyright (C) 2019 chokozainer'
 __version__      = '0.0.60.1'
