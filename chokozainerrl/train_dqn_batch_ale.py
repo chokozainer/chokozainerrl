@@ -15,7 +15,6 @@ standard_library.install_aliases()  # NOQA
 import argparse
 import functools
 import os
-import sys
 
 import chainer
 from chainer import functions as F

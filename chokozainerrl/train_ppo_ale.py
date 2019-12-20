@@ -25,72 +25,54 @@ import numpy as np
 
 import chainerrl
 from chainerrl.agents import PPO
-from chainerrl import experiments
+from chokozainerrl import experiments
+from chokozainerrl import tools
 from chainerrl import misc
 from chainerrl.wrappers import atari_wrappers
 
 
-def main():
+def make_args(argstr):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4',
-                        help='Gym Env ID.')
-    parser.add_argument('--gpu', type=int, default=0,
-                        help='GPU device ID. Set to -1 to use CPUs only.')
-    parser.add_argument('--num-envs', type=int, default=8,
-                        help='Number of env instances run in parallel.')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='Random seed [0, 2 ** 32)')
-    parser.add_argument('--outdir', type=str, default='results',
-                        help='Directory path to save output files.'
-                             ' If it does not exist, it will be created.')
-    parser.add_argument('--steps', type=int, default=10 ** 7,
-                        help='Total time steps for training.')
-    parser.add_argument('--max-frames', type=int,
-                        default=30 * 60 * 60,  # 30 minutes with 60 fps
-                        help='Maximum number of frames for each episode.')
-    parser.add_argument('--lr', type=float, default=2.5e-4,
-                        help='Learning rate.')
-    parser.add_argument('--eval-interval', type=int, default=100000,
-                        help='Interval (in timesteps) between evaluation'
-                             ' phases.')
-    parser.add_argument('--eval-n-runs', type=int, default=10,
-                        help='Number of episodes ran in an evaluation phase.')
-    parser.add_argument('--demo', action='store_true', default=False,
-                        help='Run demo episodes, not training.')
-    parser.add_argument('--load', type=str, default='',
-                        help='Directory path to load a saved agent data from'
-                             ' if it is a non-empty string.')
-    parser.add_argument('--logging-level', type=int, default=20,
-                        help='Logging level. 10:DEBUG, 20:INFO etc.')
-    parser.add_argument('--render', action='store_true', default=False,
-                        help='Render env states in a GUI window.')
-    parser.add_argument('--monitor', action='store_true', default=False,
-                        help='Monitor env. Videos and additional information'
-                             ' are saved as output files.')
-    parser.add_argument('--update-interval', type=int, default=128 * 8,
-                        help='Interval (in timesteps) between PPO iterations.')
-    parser.add_argument('--batchsize', type=int, default=32 * 8,
-                        help='Size of minibatch (in timesteps).')
-    parser.add_argument('--epochs', type=int, default=4,
-                        help='Number of epochs used for each PPO iteration.')
-    parser.add_argument('--log-interval', type=int, default=10000,
-                        help='Interval (in timesteps) of printing logs.')
-    parser.add_argument('--recurrent', action='store_true', default=False,
-                        help='Use a recurrent model. See the code for the'
-                             ' model definition.')
-    parser.add_argument('--flicker', action='store_true', default=False,
-                        help='Use so-called flickering Atari, where each'
-                             ' screen is blacked out with probability 0.5.')
-    parser.add_argument('--no-frame-stack', action='store_true', default=False,
-                        help='Disable frame stacking so that the agent can'
-                             ' only see the current screen.')
-    parser.add_argument('--checkpoint-frequency', type=int,
-                        default=None,
-                        help='Frequency at which agents are stored.')
-    args = parser.parse_args()
+    parser.add_argument('--mode', type=str, default='check')
+    parser.add_argument('--num-envs', type=int, default=1)
+    parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
+    parser.add_argument('--outdir', type=str, default='results')
+    parser.add_argument('--gpu', type=int, default=0)
+    parser.add_argument('--load-agent', type=str, default=None)
+    parser.add_argument('--log-type',type=str,default="full_stream")
+    parser.add_argument('--save-mp4',type=str,default="test.mp4")
 
+    parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
+    parser.add_argument('--step-offset', type=int, default=0)
+    parser.add_argument('--checkpoint-frequency', type=int,default=None)
+    parser.add_argument('--max-frames', type=int,default=30 * 60 * 60)  # 30 minutes with 60 fps
+    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
+    parser.add_argument('--eval-n-runs', type=int, default=10)
+
+
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--lr', type=float, default=2.5e-4)
+    parser.add_argument('--update-interval', type=int, default=128 * 8)
+    parser.add_argument('--batchsize', type=int, default=32 * 8)
+    parser.add_argument('--epochs', type=int, default=4)
+    parser.add_argument('--log-interval', type=int, default=10000)
+    parser.add_argument('--recurrent', action='store_true', default=False)
+    parser.add_argument('--flicker', action='store_true', default=False)
+    parser.add_argument('--no-frame-stack', action='store_true', default=False)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--monitor', action='store_true', default=False)
+
+    myargs = parser.parse_args(argstr)
+    return myargs
+
+def main(args):
     import logging
-    logging.basicConfig(level=args.logging_level)
+    logging.basicConfig(level=logging.INFO, filename='log')
+
+    if(type(args) is list):
+        args=make_args(args)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
 
     # Set a random seed used in ChainerRL.
     misc.set_random_seed(args.seed, gpus=(args.gpu,))
@@ -100,9 +82,6 @@ def main():
     # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
     process_seeds = np.arange(args.num_envs) + args.seed * args.num_envs
     assert process_seeds.max() < 2 ** 32
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     def make_env(idx, test):
         # Use different random seeds for train and test envs
@@ -122,6 +101,16 @@ def main():
                 mode='evaluation' if test else 'training')
         if args.render:
             env = chainerrl.wrappers.Render(env)
+        return env
+
+    def make_env_check():
+        # Use different random seeds for train and test envs
+        env_seed = args.seed
+        env = atari_wrappers.wrap_deepmind(
+            atari_wrappers.make_atari(args.env, max_frames=args.max_frames),
+            episode_life=True,
+            clip_rewards=True)
+        env.seed(int(env_seed))
         return env
 
     def make_batch_env(test):
@@ -205,21 +194,12 @@ def main():
         entropy_coef=1e-2,
         recurrent=args.recurrent,
     )
-    if args.load:
-        agent.load(args.load)
 
-    if args.demo:
-        eval_stats = experiments.eval_performance(
-            env=make_batch_env(test=True),
-            agent=agent,
-            n_steps=None,
-            n_episodes=args.eval_n_runs)
-        print('n_runs: {} mean: {} median: {} stdev: {}'.format(
-            args.eval_n_runs, eval_stats['mean'], eval_stats['median'],
-            eval_stats['stdev']))
-    else:
+    if args.load_agent:
+        agent.load(args.load_agent)
+
+    if (args.mode=='train'):
         step_hooks = []
-
         # Linearly decay the learning rate to zero
         def lr_setter(env, agent, value):
             agent.optimizer.alpha = value
@@ -236,13 +216,16 @@ def main():
             steps=args.steps,
             eval_n_steps=None,
             eval_n_episodes=args.eval_n_runs,
+            step_offset=args.step_offset,
             checkpoint_freq=args.checkpoint_frequency,
             eval_interval=args.eval_interval,
             log_interval=args.log_interval,
             save_best_so_far_agent=False,
             step_hooks=step_hooks,
+            log_type=args.log_type
         )
+    elif (args.mode=='check'):
+        return tools.make_video.check(env=make_env_check(),agent=agent,save_mp4=args.save_mp4)
 
-
-if __name__ == '__main__':
-    main()
+    elif (args.mode=='growth'):
+        return tools.make_video.growth(env=make_env_check(),agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)

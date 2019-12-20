@@ -20,7 +20,8 @@ import numpy as np
 import chainerrl
 from chainerrl.action_value import DiscreteActionValue
 from chainerrl.agents import nsq
-from chainerrl import experiments
+from chokozainerrl import experiments
+from chokozainerrl import tools
 from chainerrl import explorers
 from chainerrl import links
 from chainerrl import misc
@@ -28,40 +29,41 @@ from chainerrl.optimizers import rmsprop_async
 
 from chainerrl.wrappers import atari_wrappers
 
-
-def main():
-
+def make_args(argstr):
     parser = argparse.ArgumentParser()
-    parser.add_argument('processes', type=int)
+    parser.add_argument('--mode', type=str, default='check')
+    parser.add_argument('--processes', type=int,default=4)
     parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='Random seed [0, 2 ** 31)')
-    parser.add_argument('--lr', type=float, default=7e-4)
-    parser.add_argument('--steps', type=int, default=8 * 10 ** 7)
-    parser.add_argument('--max-frames', type=int,
-                        default=30 * 60 * 60,  # 30 minutes with 60 fps
-                        help='Maximum number of frames for each episode.')
-    parser.add_argument('--final-exploration-frames',
-                        type=int, default=4 * 10 ** 6)
-    parser.add_argument('--outdir', type=str, default='results',
-                        help='Directory path to save output files.'
-                             ' If it does not exist, it will be created.')
-    parser.add_argument('--profile', action='store_true')
-    parser.add_argument('--eval-interval', type=int, default=10 ** 6)
-    parser.add_argument('--eval-n-runs', type=int, default=10)
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default=None)
-    parser.add_argument('--logging-level', type=int, default=20,
-                        help='Logging level. 10:DEBUG, 20:INFO etc.')
-    parser.add_argument('--render', action='store_true', default=False,
-                        help='Render env states in a GUI window.')
-    parser.add_argument('--monitor', action='store_true', default=False,
-                        help='Monitor env. Videos and additional information'
-                             ' are saved as output files.')
-    args = parser.parse_args()
+    parser.add_argument('--outdir', type=str, default='results')
+    parser.add_argument('--load-agent', type=str, default=None)
+    parser.add_argument('--log-type',type=str,default="full_stream")
+    parser.add_argument('--save-mp4',type=str,default="test.mp4")
 
+    parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
+    parser.add_argument('--step-offset', type=int, default=0)
+    parser.add_argument('--checkpoint-frequency', type=int,default=None)
+    parser.add_argument('--max-frames', type=int,default=30 * 60 * 60)  # 30 minutes with 60 fps
+    parser.add_argument('--eval-interval', type=int, default=250000)
+    parser.add_argument('--eval-n-runs', type=int, default=10)
+    parser.add_argument('--profile', action='store_true')
+
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--final-exploration-frames',type=int, default=10 ** 6)
+
+    parser.add_argument('--lr', type=float, default=7e-4)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--monitor', action='store_true', default=False)
+    myargs = parser.parse_args(argstr)
+    return myargs
+
+def main(args):
     import logging
-    logging.basicConfig(level=args.logging_level)
+    logging.basicConfig(level=logging.INFO, filename='log')
+
+    if(type(args) is list):
+        args=make_args(args)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
 
     # Set a random seed used in ChainerRL.
     # If you use more than one processes, the results will be no longer
@@ -73,9 +75,6 @@ def main():
     # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
     process_seeds = np.arange(args.processes) + args.seed * args.processes
     assert process_seeds.max() < 2 ** 31
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     def make_env(process_idx, test):
         # Use different random seeds for train and test envs
@@ -165,6 +164,3 @@ def main():
             save_best_so_far_agent=False,
         )
 
-
-if __name__ == '__main__':
-    main()
