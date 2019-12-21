@@ -9,13 +9,15 @@ standard_library.install_aliases()  # NOQA
 import argparse
 import functools
 import logging
+import os
 
 import chainer
 import numpy as np
 
 import chainerrl
 from chainerrl.agents import a2c
-from chainerrl import experiments
+from chokozainerrl import experiments
+from chokozainerrl import tools
 from chainerrl import links
 from chainerrl import misc
 from chainerrl.optimizers.nonbias_weight_decay import NonbiasWeightDecay
@@ -46,49 +48,50 @@ class A2CFF(chainer.ChainList, a2c.A2CModel):
         out = self.head(state)
         return self.pi(out), self.v(out)
 
-
-def main():
+def make_args(argstr):
     parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', type=str, default='check')
     parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='Random seed [0, 2 ** 31)')
     parser.add_argument('--outdir', type=str, default='results')
-    parser.add_argument('--max-frames', type=int,
-                        default=30 * 60 * 60,  # 30 minutes with 60 fps
-                        help='Maximum number of frames for each episode.')
-    parser.add_argument('--steps', type=int, default=8 * 10 ** 7)
-    parser.add_argument('--update-steps', type=int, default=5)
-    parser.add_argument('--lr', type=float, default=7e-4)
-    parser.add_argument('--gamma', type=float, default=0.99,
-                        help='discount factor')
-    parser.add_argument('--rmsprop-epsilon', type=float, default=1e-5)
-    parser.add_argument('--use-gae', action='store_true', default=False,
-                        help='use generalized advantage estimation')
-    parser.add_argument('--tau', type=float, default=0.95,
-                        help='gae parameter')
-    parser.add_argument('--alpha', type=float, default=0.99,
-                        help='RMSprop optimizer alpha')
-    parser.add_argument('--eval-interval', type=int, default=10 ** 6)
-    parser.add_argument('--eval-n-runs', type=int, default=10)
-    parser.add_argument('--weight-decay', type=float, default=0.0)
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default='')
-    parser.add_argument('--max-grad-norm', type=float, default=40,
-                        help='value loss coefficient')
-    parser.add_argument('--gpu', '-g', type=int, default=-1,
-                        help='GPU ID (negative value indicates CPU)')
+    parser.add_argument('--gpu', type=int, default=-1)
+    parser.add_argument('--load-agent', type=str, default=None)
+    parser.add_argument('--log-type',type=str,default="full_stream")
+    parser.add_argument('--save-mp4',type=str,default="test.mp4")
     parser.add_argument('--num-envs', type=int, default=1)
-    parser.add_argument('--logging-level', type=int, default=20,
-                        help='Logging level. 10:DEBUG, 20:INFO etc.')
-    parser.add_argument('--monitor', action='store_true', default=False,
-                        help='Monitor env. Videos and additional information'
-                             ' are saved as output files.')
-    parser.add_argument('--render', action='store_true', default=False,
-                        help='Render env states in a GUI window.')
-    parser.set_defaults(use_lstm=False)
-    args = parser.parse_args()
+    
+    parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
+    parser.add_argument('--step-offset', type=int, default=0)
+    parser.add_argument('--checkpoint-frequency', type=int,default=None)
+    parser.add_argument('--max-frames', type=int,default=30 * 60 * 60)  # 30 minutes with 60 fps
+    parser.add_argument('--update-steps', type=int, default=5)
+    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
+    parser.add_argument('--eval-n-runs', type=int, default=10)
 
-    logging.basicConfig(level=args.logging_level)
+
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--lr', type=float, default=7e-4)
+    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--rmsprop-epsilon', type=float, default=1e-5)
+    parser.add_argument('--use-gae', action='store_true', default=False)
+    parser.add_argument('--tau', type=float, default=0.95)
+    parser.add_argument('--alpha', type=float, default=0.99)
+    parser.add_argument('--weight-decay', type=float, default=0.0)
+    parser.add_argument('--max-grad-norm', type=float, default=40)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--monitor', action='store_true', default=False)
+    parser.set_defaults(use_lstm=False)
+
+    myargs = parser.parse_args(argstr)
+    return myargs
+
+def main(args):
+    import logging
+    logging.basicConfig(level=logging.INFO, filename='log')
+
+    if(type(args) is list):
+        args=make_args(args)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
 
     # Set a random seed used in ChainerRL.
     # If you use more than one processes, the results will be no longer
@@ -100,9 +103,6 @@ def main():
     # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
     process_seeds = np.arange(args.num_envs) + args.seed * args.num_envs
     assert process_seeds.max() < 2 ** 31
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     def make_env(process_idx, test):
         # Use different random seeds for train and test envs
@@ -119,6 +119,15 @@ def main():
                 mode='evaluation' if test else 'training')
         if args.render:
             env = chainerrl.wrappers.Render(env)
+        return env
+    def make_env_check():
+        # Use different random seeds for train and test envs
+        env_seed = args.seed
+        env = atari_wrappers.wrap_deepmind(
+            atari_wrappers.make_atari(args.env, max_frames=args.max_frames),
+            episode_life=True,
+            clip_rewards=True)
+        env.seed(int(env_seed))
         return env
 
     def make_batch_env(test):
@@ -148,32 +157,27 @@ def main():
         tau=args.tau,
     )
 
-    if args.load:
-        agent.load(args.load)
+    if args.load_agent:
+        agent.load(args.load_agent)
 
-    if args.demo:
-        eval_stats = experiments.eval_performance(
-            env=make_batch_env(test=True),
-            agent=agent,
-            n_steps=None,
-            n_episodes=args.eval_n_runs)
-        print('n_runs: {} mean: {} median: {} stdev: {}'.format(
-            args.eval_n_runs, eval_stats['mean'], eval_stats['median'],
-            eval_stats['stdev']))
-    else:
+    if (args.mode=='train'):
         experiments.train_agent_batch_with_evaluation(
             agent=agent,
             env=make_batch_env(test=False),
             eval_env=make_batch_env(test=True),
             steps=args.steps,
+            step_offset=args.step_offset,
+            checkpoint_freq=args.checkpoint_frequency,
             eval_n_steps=None,
             eval_n_episodes=args.eval_n_runs,
             eval_interval=args.eval_interval,
             outdir=args.outdir,
             save_best_so_far_agent=False,
             log_interval=1000,
+            log_type=args.log_type
         )
+    elif (args.mode=='check'):
+        return tools.make_video.check(env=make_env_check(),agent=agent,save_mp4=args.save_mp4)
 
-
-if __name__ == '__main__':
-    main()
+    elif (args.mode=='growth'):
+        return tools.make_video.growth(env=make_env_check(),agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
