@@ -73,7 +73,7 @@ def train_loop(process_idx, env, agent, steps, outdir, counter,
                     if(log_type=='full_stream'):
                         print('outdir:%s global_step:%s local_step:%s R:%s' %(outdir, global_t, local_t, episode_r))
                         print('statistics:%s' % agent.get_statistics())
-                if(global_t-pbar.n)>= steps*0.01:
+                if(global_t-pbar.n)>= 1000:
                     pbar.update(global_t-pbar.n)
 
                 # Evaluate the current agent
