@@ -21,7 +21,8 @@ import chainerrl
 from chainerrl.action_value import DiscreteActionValue
 from chainerrl.agents import acer
 from chainerrl.distribution import SoftmaxDistribution
-from chainerrl import experiments
+from chokozainerrl import experiments
+from chokozainerrl import tools
 from chainerrl import links
 from chainerrl import misc
 from chainerrl.optimizers.nonbias_weight_decay import NonbiasWeightDecay
@@ -30,45 +31,47 @@ from chainerrl.replay_buffer import EpisodicReplayBuffer
 
 from chainerrl.wrappers import atari_wrappers
 
-
-def main():
-
+def make_args(argstr):
     parser = argparse.ArgumentParser()
-    parser.add_argument('processes', type=int)
+    parser.add_argument('--processes', type=int,default=1)
+    parser.add_argument('--mode', type=str, default='check')
     parser.add_argument('--env', type=str, default='BreakoutNoFrameskip-v4')
-    parser.add_argument('--seed', type=int, default=0,
-                        help='Random seed [0, 2 ** 31)')
-    parser.add_argument('--outdir', type=str, default='results',
-                        help='Directory path to save output files.'
-                             ' If it does not exist, it will be created.')
+    parser.add_argument('--outdir', type=str, default='results')    
+    parser.add_argument('--load-agent', type=str, default=None)
+    parser.add_argument('--log-type',type=str,default="full_stream")
+    parser.add_argument('--save-mp4',type=str,default="test.mp4")
+    
+    parser.add_argument('--steps', type=int, default=5 * 10 ** 7)
+    parser.add_argument('--step-offset', type=int, default=0)
+    parser.add_argument('--checkpoint-frequency', type=int,default=None)
+    parser.add_argument('--max-frames', type=int,default=30 * 60 * 60)  # 30 minutes with 60 fps
+    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
+    parser.add_argument('--eval-n-runs', type=int, default=10)
+
+    parser.add_argument('--seed', type=int, default=0)   
     parser.add_argument('--t-max', type=int, default=5)
     parser.add_argument('--replay-start-size', type=int, default=10000)
     parser.add_argument('--n-times-replay', type=int, default=4)
     parser.add_argument('--beta', type=float, default=1e-2)
     parser.add_argument('--profile', action='store_true')
-    parser.add_argument('--steps', type=int, default=10 ** 7)
-    parser.add_argument('--max-frames', type=int,
-                        default=30 * 60 * 60,  # 30 minutes with 60 fps
-                        help='Maximum number of frames for each episode.')
     parser.add_argument('--lr', type=float, default=7e-4)
-    parser.add_argument('--eval-interval', type=int, default=10 ** 5)
-    parser.add_argument('--eval-n-runs', type=int, default=10)
     parser.add_argument('--weight-decay', type=float, default=0.0)
-    parser.add_argument('--use-lstm', action='store_true')
-    parser.add_argument('--demo', action='store_true', default=False)
-    parser.add_argument('--load', type=str, default='')
-    parser.add_argument('--logging-level', type=int, default=20,
-                        help='Logging level. 10:DEBUG, 20:INFO etc.')
-    parser.add_argument('--render', action='store_true', default=False,
-                        help='Render env states in a GUI window.')
-    parser.add_argument('--monitor', action='store_true', default=False,
-                        help='Monitor env. Videos and additional information'
-                             ' are saved as output files.')
+    parser.add_argument('--use-lstm', action='store_true', default=False)
+    parser.add_argument('--render', action='store_true', default=False)
+    parser.add_argument('--monitor', action='store_true', default=False)
     parser.set_defaults(use_lstm=False)
-    args = parser.parse_args()
 
+    myargs = parser.parse_args(argstr)
+    return myargs
+
+def main(args):
     import logging
-    logging.basicConfig(level=args.logging_level)
+    logging.basicConfig(level=logging.INFO, filename='log')
+
+    if(type(args) is list):
+        args=make_args(args)
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
 
     # Set a random seed used in ChainerRL.
     # If you use more than one processes, the results will be no longer
@@ -80,9 +83,6 @@ def main():
     # If seed=1 and processes=4, subprocess seeds are [4, 5, 6, 7].
     process_seeds = np.arange(args.processes) + args.seed * args.processes
     assert process_seeds.max() < 2 ** 31
-
-    args.outdir = experiments.prepare_output_dir(args, args.outdir)
-    print('Output files are saved in {}'.format(args.outdir))
 
     n_actions = gym.make(args.env).action_space.n
 
@@ -125,9 +125,6 @@ def main():
                       replay_start_size=args.replay_start_size,
                       beta=args.beta, phi=phi)
 
-    if args.load:
-        agent.load(args.load)
-
     def make_env(process_idx, test):
         # Use different random seeds for train and test envs
         process_seed = process_seeds[process_idx]
@@ -144,18 +141,19 @@ def main():
         if args.render:
             env = chainerrl.wrappers.Render(env)
         return env
+    def make_env_check():
+        # Use different random seeds for train and test envs
+        env_seed = args.seed
+        env = atari_wrappers.wrap_deepmind(
+            atari_wrappers.make_atari(args.env, max_frames=args.max_frames),
+            episode_life=True,
+            clip_rewards=True)
+        env.seed(int(env_seed))
+        return env
+    if args.load_agent:
+        agent.load(args.load_agent)
 
-    if args.demo:
-        env = make_env(0, True)
-        eval_stats = experiments.eval_performance(
-            env=env,
-            agent=agent,
-            n_steps=None,
-            n_episodes=args.eval_n_runs)
-        print('n_runs: {} mean: {} median: {} stdev {}'.format(
-            args.eval_n_runs, eval_stats['mean'], eval_stats['median'],
-            eval_stats['stdev']))
-    else:
+    if (args.mode=='train'):
 
         # Linearly decay the learning rate to zero
         def lr_setter(env, agent, value):
@@ -177,7 +175,8 @@ def main():
             global_step_hooks=[lr_decay_hook],
             save_best_so_far_agent=False,
         )
+    elif (args.mode=='check'):
+        return tools.make_video.check(env=make_env_check(),agent=agent,save_mp4=args.save_mp4)
 
-
-if __name__ == '__main__':
-    main()
+    elif (args.mode=='growth'):
+        return tools.make_video.growth(env=make_env_check(),agent=agent,outdir=args.outdir,max_num=args.max_frames,save_mp4=args.save_mp4)
