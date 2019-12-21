@@ -15,6 +15,7 @@ from chokozainerrl import train_dqn_ram
 from chokozainerrl import train_dqn_ram2
 from chokozainerrl import train_dqn_batch_ale
 from chokozainerrl import train_a2c_ale
+from chokozainerrl import train_a3c_ale
 from chokozainerrl import train_acer_ale
 from chokozainerrl import train_categorical_dqn_ale
 from chokozainerrl import train_drqn_ale
