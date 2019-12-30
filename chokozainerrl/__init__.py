@@ -1,6 +1,5 @@
 from chokozainerrl import show_result
 from chokozainerrl import train_dqn_gym
-from chokozainerrl import train_dqn_gym_draft
 from chokozainerrl import train_ddqn_gym
 from chokozainerrl import train_ddqn_ram
 from chokozainerrl import train_a2c_gym
