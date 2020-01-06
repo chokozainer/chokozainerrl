@@ -17,7 +17,7 @@ with open('LICENSE') as f:
 
 setup(
     name='chokozainerrl',
-    version='0.0.61.5',
+    version='0.0.70.0',
     description='Wrapper package for chainerRL',
     long_description=readme,
     long_description_content_type='text/markdown',
