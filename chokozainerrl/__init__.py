@@ -26,11 +26,12 @@ from chokozainerrl import train_reinforce_gym
 from chokozainerrl import experiments
 from chokozainerrl import wrappers
 from chokozainerrl import tools
+from chokozainerrl import envs
 from chokozainerrl import agents  # NOQA
 
 
 __copyright__    = 'Copyright (C) 2019 chokozainer'
-__version__      = '0.0.60.1'
+__version__      = '0.0.70.0'
 __license__      = 'MIT'
 __author__       = 'chokozainer'
 __author_email__ = 'fgtohru@gmail.com'
