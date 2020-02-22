@@ -18,6 +18,7 @@ from chokozainerrl import train_a3c_ale
 from chokozainerrl import train_acer_ale
 from chokozainerrl import train_categorical_dqn_ale
 from chokozainerrl import train_drqn_ale
+from chokozainerrl import train_drqn_ram
 from chokozainerrl import train_nsq_ale
 from chokozainerrl import train_ppo_ale
 
